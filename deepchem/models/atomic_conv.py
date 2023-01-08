@@ -3,7 +3,8 @@ import deepchem as dc
 from deepchem.models import KerasModel
 from deepchem.models.layers import AtomicConvolution
 from deepchem.models.losses import L2Loss
-from tensorflow.keras.layers import Input, Dense, Reshape, Dropout, Activation, Lambda, Flatten, Concatenate
+from tensorflow import keras
+from keras.layers import Input, Dense, Reshape, Dropout, Activation, Lambda, Flatten, Concatenate
 
 import numpy as np
 import tensorflow as tf

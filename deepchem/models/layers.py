@@ -1,10 +1,13 @@
 # -*- coding: utf-8 -*-
+#%%
 import tensorflow as tf
 import numpy as np
 from collections.abc import Sequence as SequenceCollection
-from typing import Callable, Dict, List, Tuple
-from tensorflow.keras import activations, initializers, backend
-from tensorflow.keras.layers import Dropout, BatchNormalization, Dense, Activation
+from typing import Callable, Dict, List, NamedTuple
+from tensorflow import keras
+from keras import activations, initializers, backend
+from keras.layers import Dropout, BatchNormalization, Dense, Activation
+#%%
 
 
 class InteratomicL2Distances(tf.keras.layers.Layer):
@@ -2621,6 +2624,7 @@ class Highway(tf.keras.layers.Layer):
     return tf.multiply(dense_H, dense_T) + tf.multiply(parent, 1 - dense_T)
 
 
+#%%
 class WeaveLayer(tf.keras.layers.Layer):
   """This class implements the core Weave convolution from the
   Google graph convolution paper [1]_
@@ -2921,6 +2925,9 @@ class WeaveLayer(tf.keras.layers.Layer):
       P = pair_features
 
     return [A, P]
+
+
+#%%
 
 
 class WeaveGather(tf.keras.layers.Layer):
