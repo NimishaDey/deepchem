@@ -2796,7 +2796,7 @@ class WeaveLayer(nn.Module):
                n_hidden_AP: int = 50,
                n_hidden_PP: int = 50,
                update_pair: bool = True,
-               init: str = 'xavier_uniform',
+               init: str = 'xavier_uniform_',
                activation: str = 'relu',
                batch_normalize: bool = True,
                batch_normalize_kwargs: Dict = {"track_running_stats": True},
@@ -2870,34 +2870,34 @@ class WeaveLayer(nn.Module):
     init = getattr(initializers, self.init)
     self.W_AA = init(torch.empty(self.n_atom_input_feat, self.n_hidden_AA))
     self.b_AA = torch.zeros((self.n_hidden_AA,))
-    self.AA_bn = nn.BatchNorm1d(num_features=self.n_atom_input_feat,
+    self.AA_bn = nn.BatchNorm1d(num_features=self.n_hidden_AA,
                                 track_running_stats=True)
 
     self.W_PA = init(torch.empty(self.n_pair_input_feat, self.n_hidden_PA))
     self.b_PA = torch.zeros((self.n_hidden_PA,))
-    self.PA_bn = nn.BatchNorm1d(num_features=self.n_atom_input_feat,
+    self.PA_bn = nn.BatchNorm1d(num_features=self.n_hidden_PA,
                                 track_running_stats=True)
 
     self.W_A = init(torch.empty(self.n_hidden_A, self.n_atom_output_feat))
     self.b_A = torch.zeros((self.n_atom_output_feat,))
-    self.A_bn = nn.BatchNorm1d(num_features=self.n_atom_input_feat,
+    self.A_bn = nn.BatchNorm1d(num_features=self.n_atom_output_feat,
                                track_running_stats=True)
 
     if self.update_pair:
       self.W_AP = init(torch.empty(self.n_atom_input_feat * 2,
                                    self.n_hidden_AP))
       self.b_AP = torch.zeros((self.n_hidden_AP,))
-      self.AP_bn = nn.BatchNorm1d(num_features=self.n_atom_input_feat,
+      self.AP_bn = nn.BatchNorm1d(num_features=self.n_hidden_AP,
                                   track_running_stats=True)
 
       self.W_PP = init(torch.empty(self.n_pair_input_feat, self.n_hidden_PP))
       self.b_PP = torch.zeros((self.n_hidden_PP,))
-      self.PP_bn = nn.BatchNorm1d(num_features=self.n_atom_input_feat,
+      self.PP_bn = nn.BatchNorm1d(num_features=self.n_hidden_PP,
                                   track_running_stats=True)
 
       self.W_P = init(torch.empty(self.n_hidden_P, self.n_pair_output_feat))
       self.b_P = torch.zeros((self.n_pair_output_feat,))
-      self.P_bn = nn.BatchNorm1d(num_features=self.n_atom_input_feat,
+      self.P_bn = nn.BatchNorm1d(num_features=self.n_pair_output_feat,
                                  track_running_stats=True)
     self.built = True
 
@@ -2910,6 +2910,66 @@ class WeaveLayer(nn.Module):
       Should contain 4 tensors [atom_features, pair_features, pair_split,
       atom_to_pair]
     """
+    """def unsorted_segment_sum(data, segment_ids, num_segments):
+      
+      Computes the sum along segments of a tensor. Analogous to tf.unsorted_segment_sum.
+
+      :param data: A tensor whose segments are to be summed.
+      :param segment_ids: The segment indices tensor.
+      :param num_segments: The number of segments.
+      :return: A tensor of same data type as the data argument.
+      
+      assert all([i in data.shape for i in segment_ids.shape
+                 ]), "segment_ids.shape should be a prefix of data.shape"
+
+      # segment_ids is a 1-D tensor repeat it to have the same shape as data
+      if len(segment_ids.shape) == 1:
+        s = torch.prod(torch.tensor(data.shape[1:])).long()
+        segment_ids = segment_ids.repeat_interleave(s).view(
+            segment_ids.shape[0], *data.shape[1:])
+
+      assert data.shape == segment_ids.shape, "data.shape and segment_ids.shape should be equal"
+
+      shape = [num_segments] + list(data.shape[1:])
+      tensor = torch.zeros(*shape).scatter_add(0, segment_ids, data.float())
+      tensor = tensor.type(data.dtype)
+      return tensor
+
+    def segment_sum(data, segment_ids):
+      
+      Analogous to tf.segment_sum (https://www.tensorflow.org/api_docs/python/tf/math/segment_sum).
+
+      :param data: A pytorch tensor of the data for segmented summation.
+      :param segment_ids: A 1-D tensor containing the indices for the segmentation.
+      :return: a tensor of the same type as data containing the results of the segmented summation.
+      
+      if not all(segment_ids[i] <= segment_ids[i + 1]
+                 for i in range(len(segment_ids) - 1)):
+        raise AssertionError("elements of segment_ids must be sorted")
+
+      if len(segment_ids.shape) != 1:
+        raise AssertionError("segment_ids have be a 1-D tensor")
+
+      if data.shape[0] != segment_ids.shape[0]:
+        raise AssertionError(
+            "segment_ids should be the same size as dimension 0 of input.")
+
+      # t_grp = {}
+      # idx = 0
+      # for i, s_id in enumerate(segment_ids):
+      #     s_id = s_id.item()
+      #     if s_id in t_grp:
+      #         t_grp[s_id] = t_grp[s_id] + data[idx]
+      #     else:
+      #         t_grp[s_id] = data[idx]
+      #     idx = i + 1
+      #
+      # lst = list(t_grp.values())
+      # tensor = torch.stack(lst)
+
+      num_segments = len(torch.unique(segment_ids))
+      return unsorted_segment_sum(data, segment_ids, num_segments)"""
+
     atom_features = inputs[0]
     pair_features = inputs[1]
 
@@ -2930,7 +2990,19 @@ class WeaveLayer(nn.Module):
     if self.batch_normalize:
       PA = self.PA_bn(PA)
     PA = activation(PA)
-    PA = torch.math.segment_sum(PA, pair_split)
+    t_grp = {}
+    idx = 0
+    for i, s_id in enumerate(pair_split):
+      s_id = s_id.item()
+      if s_id in t_grp:
+        t_grp[s_id] = t_grp[s_id] + PA[idx]
+      else:
+        t_grp[s_id] = PA[idx]
+      idx = i + 1
+
+      lst = list(t_grp.values())
+      tensor = torch.stack(lst)
+    PA = tensor
 
     A = torch.matmul(torch.concat([AA, PA], 1), self.W_A) + self.b_A
     if self.batch_normalize:
@@ -2941,9 +3013,10 @@ class WeaveLayer(nn.Module):
       # Note that AP_ij and AP_ji share the same self.AP_bn batch
       # normalization
       AP_ij = torch.matmul(
-          torch.reshape(torch.gather(atom_features, atom_to_pair),
-                        [-1, 2 * self.n_atom_input_feat]),
-          self.W_AP) + self.b_AP
+          torch.reshape(
+              torch.gather(torch.tensor(atom_features), 0,
+                           torch.tensor(atom_to_pair, dtype=torch.int64)),
+              [-1, 2 * self.n_atom_input_feat]), self.W_AP) + self.b_AP
       if self.batch_normalize:
         AP_ij = self.AP_bn(AP_ij)
       AP_ij = activation(AP_ij)
