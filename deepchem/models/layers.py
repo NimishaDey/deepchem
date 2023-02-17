@@ -3863,3 +3863,6 @@ class SetGather(tf.keras.layers.Layer):
     c_out = f * c + i * tf.nn.tanh(z3)
     h_out = o * tf.nn.tanh(c_out)
     return h_out, c_out
+
+
+# %%

@@ -2868,36 +2868,60 @@ class WeaveLayer(nn.Module):
 
 		"""
     init = getattr(initializers, self.init)
-    self.W_AA = init(torch.empty(self.n_atom_input_feat, self.n_hidden_AA))
+    #self.W_AA = init(torch.empty(self.n_atom_input_feat, self.n_hidden_AA))
+    self.W_AA = torch.tensor((layer.W_AA).numpy())
     self.b_AA = torch.zeros((self.n_hidden_AA,))
     self.AA_bn = nn.BatchNorm1d(num_features=self.n_hidden_AA,
+                                eps=1e-3,
+                                momentum=0.99,
+                                affine=True,
                                 track_running_stats=True)
 
-    self.W_PA = init(torch.empty(self.n_pair_input_feat, self.n_hidden_PA))
+    #self.W_PA = init(torch.empty(self.n_pair_input_feat, self.n_hidden_PA))
+    self.W_PA = torch.tensor((layer.W_PA).numpy())
     self.b_PA = torch.zeros((self.n_hidden_PA,))
     self.PA_bn = nn.BatchNorm1d(num_features=self.n_hidden_PA,
+                                eps=1e-3,
+                                momentum=0.99,
+                                affine=True,
                                 track_running_stats=True)
 
-    self.W_A = init(torch.empty(self.n_hidden_A, self.n_atom_output_feat))
+    #self.W_A = init(torch.empty(self.n_hidden_A, self.n_atom_output_feat))
+    self.W_A = torch.tensor((layer.W_A).numpy())
     self.b_A = torch.zeros((self.n_atom_output_feat,))
     self.A_bn = nn.BatchNorm1d(num_features=self.n_atom_output_feat,
+                               eps=1e-3,
+                               momentum=0.99,
+                               affine=True,
                                track_running_stats=True)
 
     if self.update_pair:
-      self.W_AP = init(torch.empty(self.n_atom_input_feat * 2,
-                                   self.n_hidden_AP))
+      #self.W_AP = init(torch.empty(self.n_atom_input_feat * 2,
+      #                             self.n_hidden_AP))
+      self.W_AP = torch.tensor((layer.W_AP).numpy())
       self.b_AP = torch.zeros((self.n_hidden_AP,))
       self.AP_bn = nn.BatchNorm1d(num_features=self.n_hidden_AP,
+                                  eps=1e-3,
+                                  momentum=0.99,
+                                  affine=True,
                                   track_running_stats=True)
 
-      self.W_PP = init(torch.empty(self.n_pair_input_feat, self.n_hidden_PP))
+      #self.W_PP = init(torch.empty(self.n_pair_input_feat, self.n_hidden_PP))
+      self.W_PP = torch.tensor((layer.W_PP).numpy())
       self.b_PP = torch.zeros((self.n_hidden_PP,))
       self.PP_bn = nn.BatchNorm1d(num_features=self.n_hidden_PP,
+                                  eps=1e-3,
+                                  momentum=0.99,
+                                  affine=True,
                                   track_running_stats=True)
 
-      self.W_P = init(torch.empty(self.n_hidden_P, self.n_pair_output_feat))
+      #self.W_P = init(torch.empty(self.n_hidden_P, self.n_pair_output_feat))
+      self.W_P = torch.tensor((layer.W_P).numpy())
       self.b_P = torch.zeros((self.n_pair_output_feat,))
       self.P_bn = nn.BatchNorm1d(num_features=self.n_pair_output_feat,
+                                 eps=1e-3,
+                                 momentum=0.99,
+                                 affine=True,
                                  track_running_stats=True)
     self.built = True
 
@@ -2970,24 +2994,23 @@ class WeaveLayer(nn.Module):
       num_segments = len(torch.unique(segment_ids))
       return unsorted_segment_sum(data, segment_ids, num_segments)"""
 
-    atom_features = inputs[0]
-    pair_features = inputs[1]
+    atom_features = torch.tensor(inputs[0])
+    pair_features = torch.tensor(inputs[1])
 
-    pair_split = inputs[2]
-    atom_to_pair = inputs[3]
+    pair_split = torch.tensor(inputs[2])
+    atom_to_pair = torch.tensor(inputs[3])
 
     activation = self.activation_fn
 
-    AA = torch.matmul(
-        torch.from_numpy(atom_features).type(self.W_AA.dtype),
-        self.W_AA) + self.b_AA
+    AA_p = torch.matmul(atom_features.type(torch.float32),
+                        self.W_AA) + self.b_AA
     if self.batch_normalize:
-      AA = self.AA_bn(AA)
-    AA = activation(AA)
-    PA = torch.matmul(
-        torch.from_numpy(pair_features).type(self.W_PA.dtype),
-        self.W_PA) + self.b_PA
+      self.AA_bn.eval()
+      AA_p = self.AA_bn(AA_p)
+    AA_p = activation(AA_p)
+    PA = torch.matmul(pair_features.type(torch.float32), self.W_PA) + self.b_PA
     if self.batch_normalize:
+      self.PA_bn.eval()
       PA = self.PA_bn(PA)
     PA = activation(PA)
     t_grp = {}
@@ -3004,37 +3027,49 @@ class WeaveLayer(nn.Module):
       tensor = torch.stack(lst)
     PA = tensor
 
-    A = torch.matmul(torch.concat([AA, PA], 1), self.W_A) + self.b_A
+    A = torch.matmul(torch.concat([AA_p, PA], 1), self.W_A) + self.b_A
     if self.batch_normalize:
+      self.A_bn.eval()
       A = self.A_bn(A)
     A = activation(A)
 
     if self.update_pair:
       # Note that AP_ij and AP_ji share the same self.AP_bn batch
       # normalization
+      #o = []
+      #for i in range(10):
+      #tmp = torch.index_select(atom_features, 0, atom_to_pair[i])
+      #o.append(tmp)
+
+      #o = torch.stack(o, 0)
       AP_ij = torch.matmul(
-          torch.reshape(
-              torch.gather(torch.tensor(atom_features), 0,
-                           torch.tensor(atom_to_pair, dtype=torch.int64)),
-              [-1, 2 * self.n_atom_input_feat]), self.W_AP) + self.b_AP
+          torch.reshape(atom_features[atom_to_pair],
+                        [-1, 2 * self.n_atom_input_feat]).type(torch.float32),
+          self.W_AP) + self.b_AP
       if self.batch_normalize:
+        self.AP_bn.eval()
         AP_ij = self.AP_bn(AP_ij)
       AP_ij = activation(AP_ij)
       AP_ji = torch.matmul(
-          torch.reshape(
-              torch.gather(atom_features, torch.reverse(atom_to_pair, [1])),
-              [-1, 2 * self.n_atom_input_feat]), self.W_AP) + self.b_AP
+          torch.reshape(atom_features[torch.flip(atom_to_pair, [1])],
+                        [-1, 2 * self.n_atom_input_feat]).type(torch.float32),
+          self.W_AP) + self.b_AP
       if self.batch_normalize:
+        self.AP_bn.eval()
         AP_ji = self.AP_bn(AP_ji)
       AP_ji = activation(AP_ji)
 
-      PP = torch.matmul(pair_features, self.W_PP) + self.b_PP
+      PP = torch.matmul(pair_features.type(torch.float32),
+                        self.W_PP) + self.b_PP
       if self.batch_normalize:
+        self.PP_bn.eval()
         PP = self.PP_bn(PP)
       PP = activation(PP)
-      P = torch.matmul(torch.concat([AP_ij + AP_ji, PP], 1),
-                       self.W_P) + self.b_P
+      P = torch.matmul(
+          torch.concat([AP_ij + AP_ji, PP], 1).type(torch.float32),
+          self.W_P) + self.b_P
       if self.batch_normalize:
+        self.P_bn.eval()
         P = self.P_bn(P)
       P = activation(P)
     else:
@@ -3043,4 +3078,21 @@ class WeaveLayer(nn.Module):
     return [A, P]
 
 
+# %%
+smiles = ["CCC", "C"]
+total_n_atoms = 4
+n_atom_feat = 75
+np.random.seed(0)
+atom_feat = np.random.rand(total_n_atoms, n_atom_feat)
+n_pair_feat = 14
+pair_feat = [
+    np.random.rand(3 * 3, n_pair_feat),
+    np.random.rand(1 * 1, n_pair_feat)
+]
+pair_feat = np.concatenate(pair_feat, axis=0)
+pair_split = [0, 0, 0, 1, 1, 1, 2, 2, 2, 3]
+atom_to_pair = [[0, 0], [0, 1], [0, 2], [1, 0], [1, 1], [1, 2], [2, 0], [2, 1],
+                [2, 2], [3, 3]]
+layer1 = WeaveLayer()
+[A, P] = layer1([atom_feat, pair_feat, pair_split, atom_to_pair])
 # %%
