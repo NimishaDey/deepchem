@@ -1,13 +1,10 @@
 # -*- coding: utf-8 -*-
-#%%
 import tensorflow as tf
 import numpy as np
 from collections.abc import Sequence as SequenceCollection
-from typing import Callable, Dict, List, NamedTuple
-from tensorflow import keras
-from keras import activations, initializers, backend
-from keras.layers import Dropout, BatchNormalization, Dense, Activation
-#%%
+from typing import Callable, Dict, List, Tuple
+from tensorflow.keras import activations, initializers, backend
+from tensorflow.keras.layers import Dropout, BatchNormalization, Dense, Activation
 
 
 class InteratomicL2Distances(tf.keras.layers.Layer):
