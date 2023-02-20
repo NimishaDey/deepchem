@@ -1,6 +1,6 @@
 import math
 import numpy as np
-from typing import Any, Tuple, Optional, Sequence, List, Union
+from typing import Any, Tuple, Optional, Sequence, List, Union, Callable
 from collections.abc import Sequence as SequenceCollection
 try:
   import torch
@@ -2684,7 +2684,6 @@ class WeightedLinearCombo(nn.Module):
     return out_tensor
 
 
-
 class WeaveLayer(nn.Module):
   """This class implements the core Weave convolution from the
 	Google graph convolution paper [1]_
@@ -2795,7 +2794,7 @@ class WeaveLayer(nn.Module):
                n_hidden_AP: int = 50,
                n_hidden_PP: int = 50,
                update_pair: bool = True,
-               init: str = 'xavier_uniform_',
+               init_: str = 'xavier_uniform_',
                activation: str = 'relu',
                batch_normalize: bool = True,
                **kwargs):
@@ -2830,9 +2829,9 @@ class WeaveLayer(nn.Module):
 			activation functions on convolutional layers.
 		"""
     super(WeaveLayer, self).__init__(**kwargs)
-    self.init: str = init  # Set weight initialization
+    self.init: str = init_  # Set weight initialization
     self.activation: str = activation  # Get activations
-    self.activation_fn = get_activation(activation)
+    self.activation_fn: Callable = get_activation(activation)
     self.update_pair: bool = update_pair  # last weave layer does not need to update
     self.n_hidden_AA: int = n_hidden_AA
     self.n_hidden_PA: int = n_hidden_PA
@@ -2932,8 +2931,8 @@ class WeaveLayer(nn.Module):
     Returns:
     -------
     List[Union[torch.Tensor, torch.Tensor]]
-      A: Atom features tensor with shape[total_num_atoms,n_atom_input_feat]
-      P: Pair features tensor with shape[total num of pairs,n_pair_input_feat]
+      A: Atom features tensor with shape[total_num_atoms,atom feature size]
+      P: Pair features tensor with shape[total num of pairs,bond feature size]
     """
     #Converting the input to torch tensors
     atom_features: torch.Tensor = torch.tensor(inputs[0])
@@ -3016,5 +3015,3 @@ class WeaveLayer(nn.Module):
       P = pair_features
 
     return [A, P]
-
-
