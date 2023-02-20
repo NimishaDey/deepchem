@@ -2621,6 +2621,7 @@ class Highway(tf.keras.layers.Layer):
     return tf.multiply(dense_H, dense_T) + tf.multiply(parent, 1 - dense_T)
 
 
+#%%
 class WeaveLayer(tf.keras.layers.Layer):
   """This class implements the core Weave convolution from the
   Google graph convolution paper [1]_
@@ -2921,6 +2922,9 @@ class WeaveLayer(tf.keras.layers.Layer):
       P = pair_features
 
     return [A, P]
+
+
+#%%
 
 
 class WeaveGather(tf.keras.layers.Layer):
@@ -3856,3 +3860,6 @@ class SetGather(tf.keras.layers.Layer):
     c_out = f * c + i * tf.nn.tanh(z3)
     h_out = o * tf.nn.tanh(c_out)
     return h_out, c_out
+
+
+# %%

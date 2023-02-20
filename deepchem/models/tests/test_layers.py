@@ -898,3 +898,28 @@ def test_torch_weighted_linear_combo():
   expected = torch.Tensor(input1) * layer.input_weights[0] + torch.Tensor(
       input2) * layer.input_weights[1]
   assert torch.allclose(result, expected)
+
+
+@pytest.mark.torch
+def test_torch_WeaveLayer():
+  "Test invoking the Torch equivalent of Weave Layer."
+  smiles = ["CCC", "C"]
+  total_n_atoms = 4
+  n_atom_feat = 75
+  atom_feat = np.random.rand(total_n_atoms, n_atom_feat)
+  n_pair_feat = 14
+  pair_feat = [
+      np.random.rand(3 * 3, n_pair_feat),
+      np.random.rand(1 * 1, n_pair_feat)
+  ]
+  pair_feat = np.concatenate(pair_feat, axis=0)
+  assert pair_feat.shape == (10, 14)
+  pair_split = np.array([0, 0, 0, 1, 1, 1, 2, 2, 2, 3])
+  atom_to_pair = np.array([[0, 0], [0, 1], [0, 2], [1, 0], [1, 1], [1, 2],
+                           [2, 0], [2, 1], [2, 2], [3, 3]])
+  layer = torch_layers.WeaveLayer()
+  [A, P] = layer([atom_feat, pair_feat, pair_split, atom_to_pair])
+  A = np.array(A)
+  assert A.shape == (4, 50)
+  P = np.array(P)
+  assert P.shape == (10, 50)
